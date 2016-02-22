@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.bar {
+  fill: steelblue;
+}
+
+.bar:hover {
+  fill: brown;
+}
+
+.axis {
+  font: 10px Open Sans, sans-serif;
+
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.x.axis path {
+  display: none;
+}
+
+.x.axis text:hover {
+  /*fill: brown;*/
+}
+
+</style>
+<body>
+<script src = "crossfilter.js"></script>
+<script src = "https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+
+<link href='https://fonts.googleapis.com/css?family=Open+Sans:300' rel='stylesheet' type='text/css'>
+<script>
+var xfilter;
+var blocca = false;
+var modoVisStati = 0;
+var modoVisCategorie = 0;
+
+
+var regione = null;
+var stato = null;
+var categoria = null;
+
+var dimStato, dimRegione, dimCategoria;
+var groupStato, groupRegione, groupCategoria;
+
+
+var margin = {top: 20, right: 20, bottom: 90, left: 40},
+    width = 960 - margin.left - margin.right,
+    height = 400 - margin.top - margin.bottom,
+    width2 = 400 - margin.left - margin.right,
+    height2 = 400 - margin.top - margin.bottom,
+    width3 = 400 - margin.left -margin.right,
+    height3 = 400 - margin.top - margin.bottom;
+
+var x = d3.scale.ordinal()
+    .rangeRoundBands([0, width], .1);
+
+var y = d3.scale.linear()
+    .range([height, 0]);
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom");
+
+var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient("left")
+    .ticks(10);
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var svg2 = d3.select("body").append("svg")
+    .attr("width", width2 + margin.left + margin.right)
+    .attr("height", height2 + margin.top + margin.bottom)
+    .append("g");
+
+
+
+var buttonCat = d3.select("body").append("svg")
+    .attr("width", 50)
+    .attr("height", height2 + margin.top + margin.bottom);
+
+var svg5 = d3.select("body").append("svg")
+    .attr("width", 100)
+    .attr("heigh", 150)
+    .append("g");
+
+var svg3 = d3.select("body").append("svg")
+        .attr("width", width3 + margin.left + margin.right)
+        .attr("height", height3 + margin.top + margin.bottom)
+        .append("g");
+
+var buttonStato = d3.select("body").append("svg")
+        .attr("width", 50)
+        .attr("height", height2 + margin.top + margin.bottom);
+
+
+function onVisualizzaParticolari(){
+  if(modoVisStati===1){
+    cambiaStatisticheStati();
+  };
+
+  //copio per lo stato
+  if(modoVisCategorie===1){
+    cambiaStatisticheCategorie();
+  };
+
+  // Aggiorna i filtri
+  dimRegione.filter(regione);
+  dimStato.filter(stato);
+  dimCategoria.filter(categoria);
+
+  console.log("onVisualizzaParticolari: " + regione);
+  //ho gli array che posso passare alle funzioni che li andranno a graficare
+
+  //faccio partire le due funzioni che zoomano sulla regione selezionata
+  //la prima è per le categorie
+ visualizzaParticolariStati();
+
+  //la seconda è per gli stati
+ visualizzaParticolariCategorie();
+
+}
+
+var confiscati;
+d3.csv("confiscati.csv", function(data) {
+
+  confiscati = data;
+
+  xfilter = crossfilter(data);
+
+  dimRegione = xfilter.dimension(function (d){
+    return d.NOME_REG;
+  });
+
+  dimStato = xfilter.dimension(function (d){
+    return d.stato;
+  });
+
+  dimCategoria = xfilter.dimension(function (d){
+    return d.categoria;
+  });
+
+
+  // groupRegione = dimRegione.group().reduceSum(function(d){
+  //   if(regione == null) return 1;
+  //   return d.NOME_REG == regione;
+  // });
+
+  // groupStato = dimStato.group().reduceSum(function(d){
+  //   if(stato == null) return 1;
+  //   return d.stato == stato;
+  // });
+  //
+  // groupCategoria = dimCategoria.group().reduceSum(function(d){
+  //   if(categoria == null) return 1;
+  //   return d.categoria == categoria;
+  // });
+  groupRegione = dimRegione.group().reduceCount();
+  groupStato = dimStato.group().reduceCount();
+  groupCategoria = dimCategoria.group().reduceCount();
+
+
+  var beniRegione = groupRegione.all();
+
+  x.domain(beniRegione.map(function(d) { return d.key; }));
+  y.domain([0, d3.max(beniRegione, function(d) { return d.value; })]);
+
+    // onVisualizzaParticolari();
+    // var datiRegione = groupRegione.all();
+    // var datiCategoria = groupCategoria.all();
+    // var datiStato = groupStato.all();
+    //ho gli array che posso passare alle funzioni che li andranno a graficare
+    svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(xAxis)
+        .selectAll("text")
+        .style("text-anchor", "end")
+              .attr("dx", "-.8em")
+              .attr("dy", ".15em")
+        .attr("transform", "rotate(-40)")
+        .on('mouseover', function(d){
+          if(blocca === false){
+            regione = d;
+            onVisualizzaParticolari();
+            d3.selectAll(".x.axis text")
+              .style("fill", "black")
+              .style("font-weight","normal");
+            d3.select(this)
+              .style("fill", "green")
+              .style("font-weight","bold");
+
+          }
+        })
+
+        .on('click', function(d){
+          //aggiungo il reset dell'interruttore ad ogni click sulla regione
+
+          if(d === regione && blocca === true){
+            blocca = false;
+            d3.select(this)
+              .style("fill","green")
+              .style("font-weight","bold");
+            regione = null;
+            onVisualizzaParticolari();
+          }
+
+          // blocca = true;
+        else{
+          blocca = true;
+            regione = d;
+            onVisualizzaParticolari();
+            d3.selectAll(".x.axis text")
+              .style("fill", "black")
+              .style("font-weight","normal");
+            d3.select(this)
+              .style("fill", "red")
+              .style("font-weight","bold");
+
+        }
+        });
+
+        svg.append("g")
+            .attr("class", "y axis")
+            .call(yAxis)
+          .append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("y", 6)
+            .attr("dy", ".71em")
+            .style("text-anchor", "end")
+            .text("Beni sequestrati");
+
+            svg.selectAll(".bar")
+                .data(beniRegione)
+              .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", function(d) { return x(d.key); })
+                .attr("width", x.rangeBand())
+                .attr("y", function(d) { return y(d.value); })
+                .attr("height", function(d) { return height - y(d.value); });
+
+
+        //utils per modificare il bottone riferito alla categoria
+        buttonCat.append("rect")
+          .attr("x", 0)
+          .attr("y", 0)
+          .attr("width", 50)
+          .attr("height", 15)
+          .style("fill", "lightgrey")
+
+          .on("click", cambiaStatisticheStati);
+
+        buttonCat.append("rect")
+          .attr("id", "pulsante")
+          .attr("x", 0)
+          .attr("y", 0)
+          .attr("width", 25)
+          .attr("height", 15)
+
+          .style("fill", "darkgrey")
+          .on("click", cambiaStatisticheStati);
+
+      //utils per modificare il bottone riferito allo stato
+          buttonStato.append("rect")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", 50)
+            .attr("height", 15)
+            .style("fill", "lightgrey")
+
+            .on("click", cambiaStatisticheCategorie);
+
+          buttonStato.append("rect")
+            .attr("id", "pulsante")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", 25)
+            .attr("height", 15)
+
+            .style("fill", "darkgrey")
+            .on("click", cambiaStatisticheCategorie);
+    //faccio partire le due funzioni che zoomano sulla regione selezionata
+    //la prima è per le categorie
+   visualizzaParticolariRegioni();
+
+   visualizzaParticolariStati();
+
+   visualizzaParticolariCategorie();
+
+});
+
+function cambiaStatisticheStati(){
+
+  buttonCat.select("#pulsante")
+    .transition()
+    .attr("x", function(d){
+      if(modoVisStati === 0){
+        modoVisStati = 1;
+        // visualizzaParticolariStatiPercentuali(calcolaStatistiche(regione), calcolaStatisticheItalia);
+
+        svg2.selectAll(".bar")
+          .transition()
+          .attr("width", 0);
+          // console.log("ho azzerato le barrette?");
+        svg2.selectAll(".percentuali")
+          .transition()
+          .attr("width", 0);
+          // console.log("ho azzerato le barrette?");
+
+        visualizzaParticolariStatiPercentuali();
+        return 25;
+      }
+      else{
+        modoVisStati = 0;
+        svg2.selectAll(".bar")
+          .transition()
+          .attr("width", 0);
+
+        svg2.selectAll(".percentuali")
+          .transition()
+          .attr("width", 0);
+
+        visualizzaParticolariStati();
+        return 0;
+      }
+    });
+}
+
+function cambiaStatisticheCategorie(){
+
+  buttonStato.select("#pulsante")
+    .transition()
+    .attr("x", function(d){
+      if(modoVisCategorie === 0){
+        modoVisCategorie = 1;
+        // visualizzaParticolariStatiPercentuali(calcolaStatistiche(regione), calcolaStatisticheItalia);
+
+        svg3.selectAll(".bar")
+          .transition()
+          .attr("width", 0);
+          // console.log("ho azzerato le barrette?");
+        svg3.selectAll(".percentuali")
+          .transition()
+          .attr("width", 0);
+          // console.log("ho azzerato le barrette?");
+
+        visualizzaParticolariCategoriePercentuali();
+        return 25;
+      }
+      else{
+        modoVisCategorie = 0;
+        svg3.selectAll(".bar")
+          .transition()
+          .attr("width", 0);
+
+        svg3.selectAll(".percentuali")
+          .transition()
+          .attr("width", 0);
+
+        visualizzaParticolariCategorie();
+        return 0;
+      }
+    });
+}
+
+function visualizzaParticolariStatiPercentuali(){
+    //array dinamico con dati relativi al gruppo (CAMBIA CHIAMANDO FILTER!)
+    var dati = groupStato.all();
+
+    dimRegione.filterAll();
+    dimCategoria.filter(categoria);
+
+    var scala = d3.scale.linear()
+    .domain([0, d3.max(dati, function(d){
+      return d.value;
+    })])
+    .range([0, width2]);
+
+  // grafica i beni della regione
+  dimRegione.filter(regione);
+  dimCategoria.filter(categoria);
+
+    svg2.selectAll(".bar")
+      // .data(dati, function(d){
+      //   return d.key;
+      // })
+      // .enter()
+      .transition()
+      // .attr("width", 0)
+      .attr("width", function(d){
+        return scala(d.value);
+      });
+
+    dimRegione.filterAll();
+    dimCategoria.filter(categoria);
+
+    svg2.selectAll(".percentuali")
+    // .data(dati, function(d){
+    //   return d.key;
+    // })
+      .transition()
+      .attr("width", function(d){
+        return scala(d.value);
+      });
+
+    svg2.selectAll(".value")
+    // .data(dati, function(d){
+    //   return d.key;
+    // })
+    .transition()
+    .attr("x", function(d){
+      return scala(d.value)+5;
+    })
+    .attr("y", function(d, index){
+      return 45*index+25;
+    })
+    .text(function(d){
+      return d.value;
+    });
+}
+
+function visualizzaParticolariCategoriePercentuali(){
+  //array dinamico con dati relativi al gruppo (CAMBIA CHIAMANDO FILTER!)
+  var dati = groupCategoria.all();
+
+  dimRegione.filterAll();
+  dimStato.filter(stato);
+
+  var scala = d3.scale.linear()
+  .domain([0, d3.max(dati, function(d){
+    return d.value;
+  })])
+  .range([0, width2]);
+
+// grafica i beni della regione
+dimRegione.filter(regione);
+dimStato.filter(stato);
+
+  svg3.selectAll(".bar")
+    // .data(dati, function(d){
+    //   return d.key;
+    // })
+    .transition()
+    .attr("width", function(d){
+      return scala(d.value);
+    });
+
+  dimRegione.filterAll();
+  dimStato.filter(stato);
+
+  svg3.selectAll(".percentuali")
+    // .data(dati, function(d){
+    //   return d.key;
+    // })
+    .transition()
+    .attr("width", function(d){
+      return scala(d.value);
+    });
+
+  svg3.selectAll(".value")
+  // .data(dati, function(d){
+  //   return d.key;
+  // })
+  .transition()
+  .attr("x", function(d){
+    return scala(d.value)+5;
+  })
+  .attr("y", function(d, index){
+    return 45*index+25;
+  })
+  .text(function(d){
+    return d.value;
+  });
+}
+
+function visualizzaParticolariRegioni(){
+  dimStato.filter(stato);
+  dimCategoria.filter(categoria);
+  var beniRegione = groupRegione.all();
+
+svg.selectAll(".bar")
+  .transition()
+  .attr("height", function(d) { return height - y(d.value); })
+  .attr("y", function(d){
+    return y(d.value);
+  });
+
+
+}
+
+function visualizzaParticolariStati(){
+  // console.log(beniRegione);
+  dimRegione.filter(regione);
+  dimCategoria.filter(categoria);
+  var beniRegione = groupStato.all();
+
+
+//costruisco barre fittizie per aggiornarle in seguito con le percentuali (GRIGIE)
+  var scala = d3.scale.linear()
+    .domain([0, d3.max(beniRegione, function(d){
+      return d.value;
+    })])
+    .range([0, width2]);
+
+    svg2.selectAll(".percentuali")
+      .data(beniRegione, function(d){
+        return d.key;
+      })
+      .enter()
+      .append("rect")
+        .attr("x", 0)
+        .attr("y", function(d, index){
+          return 45*index+15;
+        })
+        .attr("height", 10)
+        .attr("width", 0)
+        // .attr("class", "bar")
+        .attr("class", "percentuali")
+        .style("fill", "darkgrey");
+
+
+  svg2.selectAll(".bar")
+    .data(beniRegione, function(d){
+      return d.key;
+    })
+     .enter()
+     .append("rect")
+      .attr("x", 0)
+      .attr("y", function(d, index){
+        return 45*index+15;
+      })
+      .attr("height", 10)
+      .attr("width", 0)
+      .attr("class", "bar")
+      .style("fill", "steelblue");
+
+  svg2.selectAll(".label")
+    .data(beniRegione, function(d){
+          return d.key;
+        })
+        .enter().append("text")
+          .attr("class", "label")
+          .attr("x", 0)
+          .attr("y", function(d, index){
+            return 45*index+10;
+          })
+          .text(function(d){
+            return d.key;
+          })
+          .style("font-size", "9pt")
+          .style("font-family", "'Open Sans', sans-serif")
+
+    .on("click", function(d){
+      svg2.selectAll(".label")
+      .style("font-weight", "normal");
+      if(stato === d.key){
+        stato = null;
+      }
+      else{
+        d3.select(this).style("font-weight", "bold");
+        stato = d.key;
+      }
+      if(modoVisCategorie === 0){
+        //sono nel caso in cui le categorie per una particolare regione sono visualizzate localmente e non in percentuale con il resto d'italia
+        visualizzaParticolariCategorie();
+      }
+      else{
+        //sono nel caso in cui le catego sono visualizzate in percentuale con il resto d'italia
+        visualizzaParticolariCategoriePercentuali();
+      }
+      visualizzaParticolariRegioni();
+    });
+
+
+  svg2.selectAll(".bar")
+    .transition()
+    .attr("width", function(d){
+      return scala(d.value);
+    });
+
+  svg2.selectAll(".value")
+    .data(beniRegione, function(d){
+      return d.key;
+    })
+    .enter()
+    .append("text")
+    .attr("class", "value")
+    .attr("x", 0)
+    .attr("y", 0)
+    .style("font-size", "9pt")
+    .style("font-family", "'Open Sans', sans-serif");;
+
+    svg2.selectAll(".value")
+    .transition()
+    .attr("x", function(d){
+      return scala(d.value)+5;
+    })
+    .attr("y", function(d, index){
+      return 45*index+25;
+    })
+    .text(function(d){
+      return d.value;
+    })
+}
+
+
+function visualizzaParticolariCategorie(){
+  //console.log(beniRegione);
+
+  var beniRegione = groupCategoria.all();
+  dimStato.filter(stato);
+  dimRegione.filter(regione);
+
+  var scala = d3.scale.linear()
+    .domain([0, d3.max(beniRegione, function(d){
+      return d.value;
+    })])
+    .range([0, width2]);
+
+    //costruisco barre fittizie per le percentuali (GRIGIE)
+    svg3.selectAll(".percentuali")
+      .data(beniRegione, function(d){
+        return d.key;
+      })
+       .enter()
+       .append("rect")
+        .attr("x", 0)
+        .attr("y", function(d, index){
+          return 45*index+15;
+        })
+        .attr("height", 10)
+        .attr("width", 0)
+        .attr("class", "percentuali")
+        .style("fill", "darkgrey");
+
+
+  //costruisco le barre blu relative alla regione
+  svg3.selectAll(".bar")
+    .data(beniRegione, function(d){
+      return d.key;
+    })
+     .enter()
+     .append("rect")
+      .attr("x", 0)
+      .attr("y", function(d, index){
+        return 45*index+15;
+      })
+      .attr("height", 10)
+      .attr("width", 0)
+      .attr("class", "bar")
+      .style("fill", "steelblue");
+
+  svg3.selectAll(".label")
+    .data(beniRegione, function(d){
+          return d.key;
+        })
+        .enter().append("text")
+          .attr("class", "label")
+          .attr("x", 0)
+          .attr("y", function(d, index){
+            return 45*index+10;
+          })
+          .text(function(d){
+            return d.key;
+          })
+          .style("font-size", "9pt")
+          .style("font-family", "'Open Sans', sans-serif")
+
+          .on("click", function(d){
+    //
+
+            svg3.selectAll(".label")
+            .style("font-weight", "normal");
+            if(categoria === d.key){
+              categoria = null;
+            }
+            else{
+              d3.select(this).style("font-weight", "bold");
+              categoria = d.key;
+            }
+            if(modoVisStati === 0){
+              //sono nel caso in cui le categorie per una particolare regione sono visualizzate localmente e non in percentuale con il resto d'italia
+              visualizzaParticolariStati();
+            }
+            else{
+              //sono nel caso in cui le catego sono visualizzate in percentuale con il resto d'italia
+              visualizzaParticolariStatiPercentuali();
+            }
+            visualizzaParticolariRegioni();
+          });
+
+  svg3.selectAll(".bar")
+    .transition()
+    .attr("width", function(d){
+      return scala(d.value);
+    });
+
+  svg3.selectAll(".value")
+    .data(beniRegione, function(d){
+      return d.key;
+    })
+    .enter()
+    .append("text")
+    .attr("class", "value")
+    .attr("x", 0)
+    .attr("y", 0)
+    .style("font-size", "9pt")
+    .style("font-family", "'Open Sans', sans-serif");;
+
+    svg3.selectAll(".value")
+    .transition()
+    .attr("x", function(d){
+      return scala(d.value)+5;
+    })
+    .attr("y", function(d, index){
+      return 45*index+25;
+    })
+    .text(function(d){
+      return d.value;
+    })
+}
+
+
+function type(d) {
+  d.beni = +d.beni;
+  return d;
+}
+
+</script>
